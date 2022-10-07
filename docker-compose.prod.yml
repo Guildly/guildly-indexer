@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 services:
   mongo:
@@ -8,22 +8,9 @@ services:
       MONGO_INITDB_ROOT_USERNAME: apibara
       MONGO_INITDB_ROOT_PASSWORD: apibara
     ports:
-    - 27017:27017
+      - 27017:27017
     volumes:
-    - ./_docker/apibara_mongodb:/data/db
-
-  apibara:
-    image: apibara/apibara:0.3.1
-    restart: always
-    command: start --config /usr/etc/apibara/configuration.toml
-    environment:
-      RUST_LOG: "apibara=info"
-    ports:
-    - 7171:7171
-    volumes:
-    - ./configuration.toml:/usr/etc/apibara/configuration.toml
-    links:
-    - mongo
+      - ./_docker/apibara_mongodb:/data/db
 
   indexer:
     build:
@@ -31,13 +18,11 @@ services:
       dockerfile: Dockerfile
     restart: always
     command:
-    - start
-    - --server-url
-    - apibara:7171
-    - --mongo-url
-    - "mongodb://apibara:apibara@mongo:27017"
+      - start
+      - --mongo-url
+      - "mongodb://apibara:apibara@mongo:27017"
     environment:
       PYTHONUNBUFFERED: "1"
     links:
-    - mongo
-    - apibara
+      - mongo
+      - apibara

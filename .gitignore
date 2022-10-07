@@ -1,2 +1,9 @@
 __pycache__
 _docker
+
+# environment variables
+.env
+.python-version
+
+# virtualenv
+venv
