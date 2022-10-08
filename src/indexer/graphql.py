@@ -7,6 +7,7 @@ from xmlrpc.client import DateTime
 from pyrsistent import optional
 
 import strawberry
+import aiohttp_cors
 from aiohttp import web
 from pymongo import MongoClient
 from strawberry.aiohttp.views import GraphQLView
@@ -19,22 +20,28 @@ def parse_hex(value):
         raise valueError("invalid Hex value")
     return bytes.fromhex(value.replace("0x", ""))
 
+
 def serialize_hex(token_id):
     return "0x" + token_id.hex()
+
 
 def parse_felt(value):
     return value.to_bytes(32, "big")
 
+
 def serialize_felt(value):
     return int.from_bytes(value, "big")
+
 
 def parse_string(value):
     felt = str_to_felt(value)
     return felt.to_bytes(32, "big")
 
+
 def serialize_string(value):
     felt = int.from_bytes(value, "big")
     return felt_to_str(felt)
+
 
 def parse_permission(value):
     to = value["to"]
@@ -42,6 +49,7 @@ def parse_permission(value):
     to_bytes = to.to_bytes(32, "big")
     selector_bytes = selector.to_bytes(32, "big")
     return {"to": to_bytes, "selector": selector_bytes}
+
 
 def serialize_permission(value):
     to = value["to"]
@@ -64,9 +72,10 @@ StringValue = strawberry.scalar(
 )
 
 PermissionValue = strawberry.scalar(
-    NewType("PermissionValue", bytes), parse_value=parse_permission, serialize=serialize_permission
+    NewType("PermissionValue", bytes),
+    parse_value=parse_permission,
+    serialize=serialize_permission,
 )
-
 
 
 @strawberry.input
@@ -82,40 +91,45 @@ class StringFilter:
     startsWith: Optional[StringValue] = None
     endsWith: Optional[StringValue] = None
 
+
 @strawberry.input
 class HexValueFilter:
-  eq: Optional[HexValue] = None
-  _in: Optional[List[HexValue]] = None
-  notIn: Optional[List[HexValue]] = None
-  lt: Optional[HexValue] = None
-  lte: Optional[HexValue] = None
-  gt: Optional[HexValue] = None
-  gte: Optional[HexValue] = None
+    eq: Optional[HexValue] = None
+    _in: Optional[List[HexValue]] = None
+    notIn: Optional[List[HexValue]] = None
+    lt: Optional[HexValue] = None
+    lte: Optional[HexValue] = None
+    gt: Optional[HexValue] = None
+    gte: Optional[HexValue] = None
+
 
 @strawberry.input
 class FeltValueFilter:
-  eq: Optional[FeltValue] = None
-  _in: Optional[List[FeltValue]] = None
-  notIn: Optional[List[FeltValue]] = None
-  lt: Optional[FeltValue] = None
-  lte: Optional[FeltValue] = None
-  gt: Optional[FeltValue] = None
-  gte: Optional[FeltValue] = None
+    eq: Optional[FeltValue] = None
+    _in: Optional[List[FeltValue]] = None
+    notIn: Optional[List[FeltValue]] = None
+    lt: Optional[FeltValue] = None
+    lte: Optional[FeltValue] = None
+    gt: Optional[FeltValue] = None
+    gte: Optional[FeltValue] = None
+
 
 @strawberry.input
 class DateTimeFilter:
-  eq: Optional[datetime] = None
-  _in: Optional[List[datetime]] = None
-  notIn: Optional[List[datetime]] = None
-  lt: Optional[datetime] = None
-  lte: Optional[datetime] = None
-  gt: Optional[datetime] = None
-  gte: Optional[datetime] = None
+    eq: Optional[datetime] = None
+    _in: Optional[List[datetime]] = None
+    notIn: Optional[List[datetime]] = None
+    lt: Optional[datetime] = None
+    lte: Optional[datetime] = None
+    gt: Optional[datetime] = None
+    gte: Optional[datetime] = None
+
 
 @strawberry.input
 class OrderByInput:
     asc: Optional[bool] = False
     desc: Optional[bool] = False
+
 
 @strawberry.input
 class GuildsOrderByInput:
@@ -123,6 +137,7 @@ class GuildsOrderByInput:
     master: Optional[OrderByInput] = None
     address: Optional[OrderByInput] = None
     timestamp: Optional[OrderByInput] = None
+
 
 @strawberry.input
 class MembersOrderByInput:
@@ -132,12 +147,14 @@ class MembersOrderByInput:
     token_id: Optional[OrderByInput] = None
     timestamp: Optional[OrderByInput] = None
 
+
 @strawberry.input
 class PermissionsOrderByInput:
     guild: Optional[OrderByInput] = None
     account: Optional[OrderByInput] = None
     permissions: Optional[OrderByInput] = None
     timestamp: Optional[OrderByInput] = None
+
 
 @strawberry.input
 class TokensOrderByInput:
@@ -149,11 +166,13 @@ class TokensOrderByInput:
     token_id: Optional[OrderByInput] = None
     amount: Optional[OrderByInput] = None
 
+
 @strawberry.input
 class TransactionsOrderByInput:
     account: Optional[OrderByInput] = None
     hash: Optional[OrderByInput] = None
     response: Optional[OrderByInput] = None
+
 
 @strawberry.input
 class GuildsFilter:
@@ -161,6 +180,7 @@ class GuildsFilter:
     master: Optional[HexValueFilter] = None
     address: Optional[HexValueFilter] = None
     timestamp: Optional[DateTimeFilter] = None
+
 
 @strawberry.input
 class MembersFilter:
@@ -170,12 +190,14 @@ class MembersFilter:
     token_id: Optional[FeltValueFilter] = None
     timestamp: Optional[DateTimeFilter] = None
 
+
 @strawberry.input
 class PermissionsFilter:
     guild: Optional[HexValueFilter] = None
     account: Optional[HexValueFilter] = None
     permissions: Optional[HexValueFilter] = None
     timestamp: Optional[DateTimeFilter] = None
+
 
 @strawberry.input
 class TokensFilter:
@@ -187,11 +209,13 @@ class TokensFilter:
     token_id: Optional[FeltValueFilter] = None
     amount: Optional[FeltValueFilter] = None
 
+
 @strawberry.input
 class TransactionsFilter:
     account: Optional[HexValueFilter] = None
     hash: Optional[HexValueFilter] = None
     response: Optional[List[HexValueFilter]] = None
+
 
 @strawberry.type
 class Guild:
@@ -228,6 +252,7 @@ class Member:
             timestamp=data["timestamp"],
         )
 
+
 @strawberry.type
 class Permissions:
     guild: HexValue
@@ -241,7 +266,7 @@ class Permissions:
             guild=data["guild"],
             account=data["account"],
             permissions=data["permissions"],
-            timestamp=data["timestamp"]
+            timestamp=data["timestamp"],
         )
 
 
@@ -308,9 +333,8 @@ class Transaction:
 
 #         return [Transfer.from_mongo(t) for t in query]
 
-def get_str_filters(
-    where: StringFilter
-) -> List[Dict]:
+
+def get_str_filters(where: StringFilter) -> List[Dict]:
     filter = {}
     if where.eq:
         filter = where.eq
@@ -335,9 +359,8 @@ def get_str_filters(
 
     return filter
 
-def get_felt_filters(
-    where: FeltValueFilter
-) -> List[Dict]:
+
+def get_felt_filters(where: FeltValueFilter) -> List[Dict]:
     filter = {}
     if where.eq:
         filter = where.eq
@@ -356,9 +379,8 @@ def get_felt_filters(
 
     return filter
 
-def get_hex_filters(
-    where: HexValueFilter
-) -> List[Dict]:
+
+def get_hex_filters(where: HexValueFilter) -> List[Dict]:
     filter = {}
     if where.eq:
         filter = where.eq
@@ -377,9 +399,8 @@ def get_hex_filters(
 
     return filter
 
-def get_date_filters(
-    where: DateTimeFilter
-) -> List[Dict]:
+
+def get_date_filters(where: DateTimeFilter) -> List[Dict]:
     filter = {}
     if where.eq:
         filter = where.eq
@@ -404,7 +425,7 @@ def get_guilds(
     where: Optional[GuildsFilter] = {},
     limit: Optional[int] = 10,
     skip: Optional[int] = 0,
-    orderBy: Optional[GuildsOrderByInput] = {}
+    orderBy: Optional[GuildsOrderByInput] = {},
 ) -> List[Guild]:
     db = info.context["db"]
 
@@ -454,8 +475,13 @@ def get_guilds(
 
     return [Guild.from_mongo(t) for t in query]
 
+
 def get_members(
-    info, where: Optional[MembersFilter] = {}, limit: int = 10, skip: int = 0, orderBy: Optional[MembersOrderByInput] = {"var": "updated_at"}
+    info,
+    where: Optional[MembersFilter] = {},
+    limit: int = 10,
+    skip: int = 0,
+    orderBy: Optional[MembersOrderByInput] = {"var": "updated_at"},
 ) -> List[Member]:
     db = info.context["db"]
 
@@ -514,8 +540,13 @@ def get_members(
 
     return [Member.from_mongo(t) for t in query]
 
+
 def get_permissions(
-    info, where: Optional[PermissionsFilter] = {}, limit: int = 10, skip: int = 0, orderBy: Optional[PermissionsOrderByInput] = {"var": "updated_at"}
+    info,
+    where: Optional[PermissionsFilter] = {},
+    limit: int = 10,
+    skip: int = 0,
+    orderBy: Optional[PermissionsOrderByInput] = {"var": "updated_at"},
 ) -> List[Permissions]:
     db = info.context["db"]
 
@@ -552,13 +583,19 @@ def get_permissions(
         sort_var = "updated_at"
         sort_dir = -1
 
-    query = db["permissions"].find(filter).skip(skip).limit(limit).sort(sort_var, sort_dir)
+    query = (
+        db["permissions"].find(filter).skip(skip).limit(limit).sort(sort_var, sort_dir)
+    )
 
     return [Permissions.from_mongo(t) for t in query]
 
 
 def get_tokens(
-    info, where: Optional[TokensFilter] = {}, limit: int = 10, skip: int = 0, orderBy: Optional[TokensOrderByInput] = {"var": "updated_at"}
+    info,
+    where: Optional[TokensFilter] = {},
+    limit: int = 10,
+    skip: int = 0,
+    orderBy: Optional[TokensOrderByInput] = {"var": "updated_at"},
 ) -> List[Token]:
     db = info.context["db"]
 
@@ -630,7 +667,6 @@ def get_tokens(
     else:
         sort_var = "updated_at"
         sort_dir = -1
-        
 
     query = db["tokens"].find(filter).skip(skip).limit(limit).sort(sort_var, sort_dir)
 
@@ -638,7 +674,11 @@ def get_tokens(
 
 
 def get_transactions(
-    info, where: Optional[TransactionsFilter] = None, limit: int = 10, skip: int = 0, orderBy: Optional[TransactionsOrderByInput] = {"var": "updated_at"}
+    info,
+    where: Optional[TransactionsFilter] = None,
+    limit: int = 10,
+    skip: int = 0,
+    orderBy: Optional[TransactionsOrderByInput] = {"var": "updated_at"},
 ) -> List[Transaction]:
     db = info.context["db"]
 
@@ -712,7 +752,14 @@ async def run_graphql_api(mongo_url=None):
     view = IndexerGraphQLView(db, schema=schema)
 
     app = web.Application()
-    app.router.add_route("*", "/graphql", view)
+    cors = aiohttp_cors.setup(app)
+    resource = cors.add(app.router.add_resource("/graphql"))
+    cors.add(
+        resource.add_route("POST", view),
+        {
+            "*": aiohttp_cors.ResourceOptions(expose_headers="*", allow_headers="*", allow_methods="*"),
+        },
+    )
 
     runner = web.AppRunner(app)
     await runner.setup()
