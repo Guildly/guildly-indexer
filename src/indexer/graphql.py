@@ -44,19 +44,57 @@ def serialize_string(value):
 
 
 def parse_permission(value):
-    to = value["to"]
-    selector = value["selector"]
-    to_bytes = to.to_bytes(32, "big")
-    selector_bytes = selector.to_bytes(32, "big")
-    return {"to": to_bytes, "selector": selector_bytes}
+    if value is not None:
+        to = value["to"]
+        selector = value["selector"]
+        to_bytes = to.to_bytes(32, "big")
+        selector_bytes = selector.to_bytes(32, "big")
+        return {"to": to_bytes, "selector": selector_bytes}
+    else:
+        return []
+    
 
 
 def serialize_permission(value):
-    to = value["to"]
-    selector = value["selector"]
-    to_felt = int.from_bytes(to, "big")
-    selector_felt = int.from_bytes(selector, "big")
-    return {"to": to_felt, "selector": selector_felt}
+    if value is not None:
+        to = value["to"]
+        selector = value["selector"]
+        to_felt = int.from_bytes(to, "big")
+        selector_felt = int.from_bytes(selector, "big")
+        return {"to": to_felt, "selector": selector_felt}
+    else:
+        return []
+
+def parse_token(value):
+    if value is not None:
+        token_standard = value["token_standard"]
+        token = value["token"]
+        tokenId = value["tokenId"]
+        amount = value["amount"]
+        token_standard_bytes = token_standard.to_bytes(32, "big")
+        token_bytes = token.to_bytes(32, "big")
+        tokenId_bytes = tokenId.to_bytes(32, "big")
+        amount_bytes = amount.to_bytes(32, "big")
+        return {"token_standard": token_standard_bytes, "token": token_bytes, "tokenId": tokenId_bytes, "amount": amount_bytes}
+    else:
+        return []
+    
+
+
+def serialize_token(value):
+    if value is not None:
+        token_standard = value["token_standard"]
+        token = value["token"]
+        tokenId = value["tokenId"]
+        amount = value["amount"]
+        token_standard_felt = int.from_bytes(token_standard, "big")
+        token_felt = int.from_bytes(token, "big")
+        tokenId_felt = int.from_bytes(tokenId, "big")
+        amount_felt = int.from_bytes(amount, "big")
+        return {"token_standard": token_standard_felt, "token": token_felt, "tokenId": tokenId_felt, "amount": amount_felt}
+    else:
+        return []
+    
 
 
 HexValue = strawberry.scalar(
@@ -75,6 +113,12 @@ PermissionValue = strawberry.scalar(
     NewType("PermissionValue", bytes),
     parse_value=parse_permission,
     serialize=serialize_permission,
+)
+
+TokenValue = strawberry.scalar(
+    NewType("TokenValue", bytes),
+    parse_value=parse_token,
+    serialize=serialize_token,
 )
 
 
@@ -173,13 +217,12 @@ class TransactionsOrderByInput:
     hash: Optional[OrderByInput] = None
     response: Optional[OrderByInput] = None
 
-
 @strawberry.input
-class GuildsFilter:
-    name: Optional[StringFilter] = None
-    master: Optional[HexValueFilter] = None
-    address: Optional[HexValueFilter] = None
-    timestamp: Optional[DateTimeFilter] = None
+class WhitelistedMembersOrderByInput:
+    account: Optional[OrderByInput] = None
+    role: Optional[OrderByInput] = None
+    guild: Optional[OrderByInput] = None
+    timestamp: Optional[OrderByInput] = None
 
 
 @strawberry.input
@@ -192,10 +235,11 @@ class MembersFilter:
 
 
 @strawberry.input
-class PermissionsFilter:
+class PermissionFilter:
     guild: Optional[HexValueFilter] = None
     account: Optional[HexValueFilter] = None
-    permissions: Optional[HexValueFilter] = None
+    to: Optional[HexValueFilter] = None
+    selector: Optional[HexValueFilter] = None
     timestamp: Optional[DateTimeFilter] = None
 
 
@@ -216,23 +260,23 @@ class TransactionsFilter:
     hash: Optional[HexValueFilter] = None
     response: Optional[List[HexValueFilter]] = None
 
+@strawberry.input
+class WhitelistedMembersFilter:
+    account: Optional[HexValueFilter] = None
+    role: Optional[FeltValueFilter] = None
+    guild: Optional[HexValueFilter] = None
+    timestamp: Optional[DateTimeFilter] = None
 
-@strawberry.type
-class Guild:
-    name: StringValue
-    master: HexValue
-    address: HexValue
-    timestamp: datetime
-
-    @classmethod
-    def from_mongo(cls, data):
-        return cls(
-            name=data["name"],
-            master=data["master"],
-            address=data["address"],
-            timestamp=data["timestamp"],
-        )
-
+@strawberry.input
+class GuildsFilter:
+    name: Optional[StringFilter] = None
+    master: Optional[HexValueFilter] = None
+    address: Optional[HexValueFilter] = None
+    timestamp: Optional[DateTimeFilter] = None
+    members: Optional[MembersFilter] = None
+    permissions: Optional[PermissionFilter] = None
+    tokens: Optional[TokensFilter] = None
+    whitelisted_members: Optional[WhitelistedMembersFilter] = None
 
 @strawberry.type
 class Member:
@@ -252,12 +296,12 @@ class Member:
             timestamp=data["timestamp"],
         )
 
-
 @strawberry.type
-class Permissions:
+class Permission:
     guild: HexValue
     account: HexValue
-    permissions: List[PermissionValue]
+    to: HexValue
+    selector: HexValue
     timestamp: datetime
 
     @classmethod
@@ -265,10 +309,10 @@ class Permissions:
         return cls(
             guild=data["guild"],
             account=data["account"],
-            permissions=data["permissions"],
+            to=data["to"],
+            selector=data["selector"],
             timestamp=data["timestamp"],
         )
-
 
 @strawberry.type
 class Token:
@@ -292,7 +336,6 @@ class Token:
             amount=data["amount"],
         )
 
-
 @strawberry.type
 class Transaction:
     account: HexValue
@@ -305,33 +348,86 @@ class Transaction:
             account=data["account"], hash=data["hash"], response=data["response"]
         )
 
+@strawberry.type
+class WhitelistedMember:
+    account: HexValue
+    role: FeltValue
+    guild: HexValue
+    timestamp: datetime
 
-# @strawberry.type
-# class Token:
-#     token_id: HexValue
-#     owner: HexValue
-#     updated_at: datetime
+    @classmethod
+    def from_mongo(cls, data):
+        return cls(
+            account=data["account"],
+            role=data["role"],
+            guild=data["guild"],
+            timestamp=data["timestamp"],
+        )
 
-#     @classmethod
-#     def from_mongo(cls, data):
-#         return cls(
-#             token_id=data["token_id"],
-#             owner=data["owner"],
-#             updated_at=data["updated_at"],
-#         )
+@strawberry.type
+class Guild:
+    name: StringValue
+    master: HexValue
+    address: HexValue
+    permissions: Optional[List[Permission]] = None
+    whitelisted_members: Optional[List[WhitelistedMember]] = None
+    members: Optional[List[Member]] = None
+    tokens: Optional[List[Token]] = None
+    timestamp: datetime
 
-#     @strawberry.field
-#     def transfers(self, info, limit: int = 10, skip: int = 0) -> List[Transfer]:
-#         db = info.context["db"]
-#         query = (
-#             db["transfers"]
-#             .find({"token_id": self.token_id})
-#             .limit(limit)
-#             .skip(skip)
-#             .sort("timestamp", -1)
-#         )
-
-#         return [Transfer.from_mongo(t) for t in query]
+    @classmethod
+    def from_mongo(cls, data):
+        format_permissions = []
+        format_whitelisted_members = []
+        format_members = []
+        format_tokens = []
+        for i in data["permissions"]:
+            format_permissions.append(Permission(
+                guild=i["guild"],
+                account=i["account"],
+                to=i["to"],
+                selector=i["selector"],
+                timestamp=i["timestamp"]
+            ))
+        if data["whitelisted_members"] is not None:
+            for i in data["whitelisted_members"]:
+                format_whitelisted_members.append(WhitelistedMember(
+                    account=i["account"],
+                    role=i["role"],
+                    guild=i["guild"],
+                    timestamp=i["timestamp"]
+                ))
+        if data["members"] is not None:
+            for i in data["members"]:
+                format_members.append(Member(
+                    account=i["account"],
+                    role=i["role"],
+                    guild=i["guild"],
+                    token_id=i["token_id"],
+                    timestamp=i["timestamp"]
+                ))
+        if data["tokens"] is not None:
+            for i in data["tokens"]:
+                format_tokens.append(Token(
+                    account=i["account"],
+                    certificate_id=i["certificate_id"],
+                    guild=i["guild"],
+                    token_standard=i["token_standard"],
+                    token=i["token"],
+                    token_id=i["token_id"],
+                    amount=i["amount"],
+                ))
+        
+        return cls(
+            name=data["name"],
+            master=data["master"],
+            address=data["address"],
+            permissions=format_permissions,
+            whitelisted_members=format_whitelisted_members,
+            members=format_members,
+            tokens=format_tokens,
+            timestamp=data["timestamp"],
+        )
 
 
 def get_str_filters(where: StringFilter) -> List[Dict]:
@@ -439,6 +535,74 @@ def get_guilds(
     if where.timestamp is not None:
         filter["timestamp"] = get_date_filters(where.timestamp)
 
+    if where.members is not None:
+        if where.members.account is not None:
+            filter["members"] = {}
+            filter["members"]["account"] = get_hex_filters(where.members.account)
+        if where.members.guild is not None:
+            filter["members"] = {}
+            filter["members"]["guild"] = get_hex_filters(where.members.guild)
+        if where.members.role is not None:
+            filter["members"] = {}
+            filter["members"]["role"] = get_felt_filters(where.members.role)
+        if where.members.token_id is not None:
+            filter["members"] = {}
+            filter["members"]["token_id"] = get_felt_filters(where.members.token_id)
+        if where.members.timestamp is not None:
+            filter["members"] = {}
+            filter["members"]["timestamp"] = get_date_filters(where.members.timestamp)
+
+    if where.permissions is not None:
+        if where.permissions.account is not None:
+            filter["permissions"] = {}
+            filter["permissions"]["account"] = get_hex_filters(where.permissions.account)
+        if where.permissions.guild is not None:
+            filter["permissions"] = {}
+            filter["permissions"]["guild"] = get_hex_filters(where.permissions.guild)
+        if where.permissions.to is not None:
+            filter["permissions"] = {}
+            filter["permissions"]["to"] = get_hex_filters(where.permissions.to)
+        if where.permissions.selector is not None:
+            filter["permissions"] = {}
+            filter["permissions"]["selector"] = get_hex_filters(where.permissions.selector)
+        if where.permissions.timestamp is not None:
+            filter["permissions"] = {}
+            filter["permissions"]["timestamp"] = get_date_filters(where.permissions.timestamp)
+
+    if where.tokens is not None:
+        if where.tokens.account is not None:
+            filter["tokens"] = {}
+            filter["tokens"]["account"] = get_hex_filters(where.tokens.account)
+        if where.tokens.guild is not None:
+            filter["tokens"] = {}
+            filter["tokens"]["guild"] = get_hex_filters(where.tokens.guild)
+        if where.tokens.token_standard is not None:
+            filter["tokens"] = {}
+            filter["tokens"]["token_standard"] = get_felt_filters(where.tokens.tokenStandard)
+        if where.tokens.token is not None:
+            filter["tokens"] = {}
+            filter["tokens"]["token"] = get_hex_filters(where.tokens.token)
+        if where.tokens.token_id is not None:
+            filter["tokens"] = {}
+            filter["tokens"]["token_id"] = get_hex_filters(where.tokens.tokenId)
+        if where.tokens.amount is not None:
+            filter["tokens"] = {}
+            filter["tokens"]["amount"] = get_hex_filters(where.tokens.amount)
+
+    if where.whitelisted_members is not None:
+        if where.whitelisted_members.account is not None:
+            filter["whitelisted_members"] = {}
+            filter["whitelisted_members"]["account"] = get_hex_filters(where.whitelisted_members.account)
+        if where.whitelisted_members.guild is not None:
+            filter["whitelisted_members"] = {}
+            filter["whitelisted_members"]["guild"] = get_hex_filters(where.whitelisted_members.guild)
+        if where.whitelisted_members.role is not None:
+            filter["whitelisted_members"] = {}
+            filter["whitelisted_members"]["role"] = get_felt_filters(where.whitelisted_members.role)
+        if where.members.token_id is not None:
+            filter["whitelisted_members"] = {}
+            filter["whitelisted_members"]["timestamp"] = get_felt_filters(where.whitelisted_members.timestamp)
+
     if orderBy.name is not None:
         if orderBy.name.asc:
             sort_var = "name"
@@ -543,11 +707,11 @@ def get_members(
 
 def get_permissions(
     info,
-    where: Optional[PermissionsFilter] = {},
+    where: Optional[PermissionFilter] = {},
     limit: int = 10,
     skip: int = 0,
     orderBy: Optional[PermissionsOrderByInput] = {"var": "updated_at"},
-) -> List[Permissions]:
+) -> List[Permission]:
     db = info.context["db"]
 
     filter = {"_chain.valid_to": None}
@@ -587,7 +751,7 @@ def get_permissions(
         db["permissions"].find(filter).skip(skip).limit(limit).sort(sort_var, sort_dir)
     )
 
-    return [Permissions.from_mongo(t) for t in query]
+    return [Permission.from_mongo(t) for t in query]
 
 
 def get_tokens(
@@ -721,14 +885,73 @@ def get_transactions(
 
     return [Transaction.from_mongo(t) for t in query]
 
+def get_whitelisted_members(
+    info,
+    where: Optional[MembersFilter] = {},
+    limit: int = 10,
+    skip: int = 0,
+    orderBy: Optional[MembersOrderByInput] = {"var": "updated_at"},
+) -> List[Member]:
+    db = info.context["db"]
+
+    filter = {"_chain.valid_to": None}
+    if where.account is not None:
+        filter["account"] = get_hex_filters(where.account)
+    if where.role is not None:
+        filter["role"] = get_felt_filters(where.role)
+    if where.guild is not None:
+        filter["guild"] = get_hex_filters(where.guild)
+    if where.timestamp is not None:
+        filter["timestamp"] = get_date_filters(where.timestamp)
+
+    if orderBy.account is not None:
+        if orderBy.account.asc:
+            sort_var = "account"
+            sort_dir = 1
+        if orderBy.account.desc:
+            sort_var = "account"
+            sort_dir = -1
+    if orderBy.role is not None:
+        if orderBy.role.asc:
+            sort_var = "role"
+            sort_dir = 1
+        if orderBy.rike.desc:
+            sort_var = "role"
+            sort_dir = -1
+    if orderBy.guild is not None:
+        if orderBy.guild.asc:
+            sort_var = "guild"
+            sort_dir = 1
+        if orderBy.guild.desc:
+            sort_var = "guild"
+            sort_dir = -1
+        if orderBy.token_id.desc:
+            sort_var = "token_id"
+            sort_dir = -1
+    if orderBy.timestamp is not None:
+        if orderBy.timestamp.asc:
+            sort_var = "timestamp"
+            sort_dir = 1
+        if orderBy.timestamp.desc:
+            sort_var = "timestamp"
+            sort_dir = -1
+    else:
+        sort_var = "updated_at"
+        sort_dir = -1
+
+    query = db["whitelisted_members"].find(filter).skip(skip).limit(limit).sort(sort_var, sort_dir)
+
+    return [WhitelistedMember.from_mongo(t) for t in query]
+
 
 @strawberry.type
 class Query:
     guilds: List[Guild] = strawberry.field(resolver=get_guilds)
     members: List[Member] = strawberry.field(resolver=get_members)
-    permissions: List[Permissions] = strawberry.field(resolver=get_permissions)
+    permissions: List[Permission] = strawberry.field(resolver=get_permissions)
     tokens: List[Token] = strawberry.field(resolver=get_tokens)
     transactions: List[Transaction] = strawberry.field(resolver=get_transactions)
+    whitelisted_members: List[WhitelistedMember] = strawberry.field(resolver=get_whitelisted_members)
 
 
 class IndexerGraphQLView(GraphQLView):
@@ -756,6 +979,12 @@ async def run_graphql_api(mongo_url=None):
     resource = cors.add(app.router.add_resource("/graphql"))
     cors.add(
         resource.add_route("POST", view),
+        {
+            "*": aiohttp_cors.ResourceOptions(expose_headers="*", allow_headers="*", allow_methods="*"),
+        },
+    )
+    cors.add(
+        resource.add_route("GET", view),
         {
             "*": aiohttp_cors.ResourceOptions(expose_headers="*", allow_headers="*", allow_methods="*"),
         },

@@ -167,9 +167,7 @@ guild_deploy_decoder = FunctionCallSerializer(
 
 token_ids_decoder = FunctionCallSerializer(
     abi=token_ids_abi,
-    identifier_manager=identifier_manager_from_abi(
-        [token_ids_abi, uint256_abi]
-    ),
+    identifier_manager=identifier_manager_from_abi([token_ids_abi, uint256_abi]),
 )
 
 permissions_decoder = FunctionCallSerializer(
@@ -204,6 +202,7 @@ deposit_withdraw_decoder = FunctionCallSerializer(
     identifier_manager=identifier_manager_from_abi([deposited_abi, uint256_abi]),
 )
 
+
 def _felt_from_iter(it: Iterator[bytes]):
     return int.from_bytes(next(it), "big")
 
@@ -214,11 +213,13 @@ def _uint256_from_iter(it: Iterator[bytes]):
     # return (high << 128) + low
     return low, high
 
+
 def _permission_from_iter(it: Iterator[bytes]):
     to = _felt_from_iter(it)
     selector = _felt_from_iter(it)
     # return (high << 128) + low
     return to, selector
+
 
 def decode_permissions_set_event(data):
     data_iter = iter(data)
@@ -252,7 +253,9 @@ def decode_transaction_executed_event(data):
     for _ in range(response_len):
         value = _felt_from_iter(data_iter)
         response.append(value)
-    return transaction_executed_decoder.to_python([account, hash, response_len, response])
+    return transaction_executed_decoder.to_python(
+        [account, hash, response_len, response]
+    )
 
 
 def decode_deposit_withdraw_event(data):
@@ -296,12 +299,35 @@ def decode_member_role_updated_event(data):
 def encode_int_as_bytes(n):
     return n.to_bytes(32, "big")
 
+
 def encode_permissions_as_bytes(n):
     for i in n:
         i["to"] = i["to"].to_bytes(32, "big")
         i["selector"] = i["selector"].to_bytes(32, "big")
     return n
 
+
+async def update_guilds(info: Info, collection, guild):
+    guild_data = await info.storage.find_one(
+        "guilds",
+        {
+            "address": guild,
+        },
+    )
+    if guild_data is not None:
+        collection_data = await info.storage.find(collection, {"guild": guild})
+        guild_data[collection] = list(collection_data)
+        new_data = guild_data
+        new_data.pop("_id")
+        await info.storage.find_one_and_update(
+            "guilds",
+            {
+                "address": guild,
+            },
+            {
+                "$set": new_data,
+            },
+        )
 
 
 async def handle_events(info: Info, block_events: NewEvents):
@@ -317,12 +343,18 @@ async def handle_events(info: Info, block_events: NewEvents):
                 "name": encode_int_as_bytes(gde.name),
                 "master": encode_int_as_bytes(gde.master),
                 "address": encode_int_as_bytes(gde.contract_address),
+                "permissions": None,
+                "whitelisted_members": None,
+                "members": None,
+                "tokens": None,
                 "timestamp": block_time,
             }
             await info.storage.insert_one("guilds", guild_deploy_doc)
             info.add_event_filters(
                 filters=[
-                    # EventFilter.from_event_name("MemberWhitelisted", address=gde.contract_address),
+                    EventFilter.from_event_name(
+                        "MemberWhitelisted", address=gde.contract_address
+                    ),
                     EventFilter.from_event_name(
                         "MemberRemoved", address=gde.contract_address
                     ),
@@ -363,27 +395,56 @@ async def handle_events(info: Info, block_events: NewEvents):
                         "token_id": encode_int_as_bytes(mbe.id),
                     },
                 )
+            await update_guilds(info, "members", members_doc["guild"])
+        elif event.name == "MemberWhitelisted":
+            mwe = decode_member_whitelisted_event(event.data)
+            whitelisted_doc = {
+                "guild": event.address,
+                "account": encode_int_as_bytes(mwe.account),
+                "role": encode_int_as_bytes(mwe.role),
+                "timestamp": block_time,
+            }
+            await info.storage.insert_one("whitelisted_members", whitelisted_doc)
+            await update_guilds(info, "whitelisted_members", event.address)
         elif event.name == "MemberRoleUpdated":
             mrue = decode_member_role_updated_event(event.data)
             member_role_updated_docs = {
+                "guild": event.address,
                 "account": encode_int_as_bytes(mrue.account),
                 "role": encode_int_as_bytes(mrue.role),
+                "timestamp": block_time,
             }
             await info.storage.find_one_and_update(
                 "members",
-                member_role_updated_docs.pop("role"),
+                {
+                    "account": encode_int_as_bytes(mrue.account),
+                    "guild": encode_int_as_bytes(mrue.guild),
+                },
                 member_role_updated_docs,
             )
+            await info.storage.find_one_and_update(
+                "whitelisted_members",
+                {
+                    "account": encode_int_as_bytes(mrue.account),
+                    "guild": encode_int_as_bytes(mrue.guild),
+                },
+                member_role_updated_docs,
+            )
+            await update_guilds(info, "whitelisted_members", event.address)
+            await update_guilds(info, "members", event.address)
         elif event.name == "PermissionsSet":
             pse = decode_permissions_set_event(event.data)
-            permissions_set_doc = {
-                "guild": event.address,
-                "account": encode_int_as_bytes(pse.account),
-                "permissions": encode_permissions_as_bytes(pse.permissions),
-                "timestamp": block_time,
-            }
+            for p in pse.permissions:
+                permissions_set_doc = {
+                    "guild": event.address,
+                    "account": encode_int_as_bytes(pse.account),
+                    "to": encode_int_as_bytes(p["to"]),
+                    "selector": encode_int_as_bytes(p["selector"]),
+                    "timestamp": block_time,
+                }
 
-            await info.storage.insert_one("permissions", permissions_set_doc)
+                await info.storage.insert_one("permissions", permissions_set_doc)
+            await update_guilds(info, "permissions", event.address)
         elif event.name == "TransactionExecuted":
             te = decode_transaction_executed_event(event.data)
             transaction_executed_doc = {
@@ -413,30 +474,36 @@ async def handle_events(info: Info, block_events: NewEvents):
             if event.name == "Deposited":
                 token = await info.storage.find_one("tokens", filter)
                 if token:
-                    deposit_withdraw_doc["amount"] = (
-                        deposit_withdraw_doc["amount"] + token.amount
+                    deposit_withdraw_doc["amount"] = encode_int_as_bytes(
+                        dwe.amount + int.from_bytes(token["amount"], "big")
                     )
                     await info.storage.find_one_and_update(
                         "tokens",
                         filter,
-                        deposit_withdraw_doc,
+                        {
+                            "$set": deposit_withdraw_doc,
+                        },
                     )
+                    await update_guilds(info, "tokens", event.address)
                 else:
                     await info.storage.insert_one("tokens", deposit_withdraw_doc)
+                await update_guilds(info, "tokens", event.address)
             if event.name == "Withdrawn":
                 token = await info.storage.find_one("tokens", filter)
                 if token:
-                    deposit_withdraw_doc["amount"] = (
-                        deposit_withdraw_doc["amount"] - token.amount
-                    )
-                    if deposit_withdraw_doc["amount"] == 0:
+                    new_amount = dwe.amount - int.from_bytes(token["amount"], "big")
+                    deposit_withdraw_doc["amount"] = encode_int_as_bytes(new_amount)
+                    if new_amount == 0:
                         await info.storage.delete_one("tokens", filter)
                     else:
                         await info.storage.find_one_and_update(
                             "tokens",
                             filter,
-                            deposit_withdraw_doc,
+                            {
+                                "$set": deposit_withdraw_doc,
+                            },
                         )
+                    await update_guilds(info, "tokens", event.address)
                 else:
                     print("error: withdraw of undeposited token")
         else:
